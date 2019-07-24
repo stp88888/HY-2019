@@ -34,7 +34,7 @@ offline = 0
 #random_state_num = 1
 drop_user = 1
 drop_user_limit = 50
-#if xgb_switch on, drop_user must be 1
+#if xgb_switch on, one of (drop_user and first_run) must be 1
 xgb_switch = 0
 #if first_run off, drop_user is useless
 first_run = 0
