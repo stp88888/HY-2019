@@ -125,7 +125,7 @@ for user_id in data_test.buyer_admin_id.drop_duplicates():
         #calc score
         score = 0
         for i in item_intersection:
-            score += user_cart_train[user_id][i] * user_cart_train[each_neightbour][i] / math.log(1 + len(item_user_dict[i]))
+            score += user_cart_train[user_id][i] * user_cart_train[each_neightbour][i]
         score /= (calculated_neighbour_sim[user_id] * calculated_neighbour_sim[each_neightbour])
         #score = 2 * len(set(user_cart_train[each_neightbour]).intersection(set(item_list))) / (len(set(user_cart_train[each_neightbour]))
         #        + len(set(item_list)))
@@ -148,10 +148,10 @@ for user_id in data_test.buyer_admin_id.drop_duplicates():
         neighbour = neighbour_score[:neighbour_num_temp]
     
     #get N nearest neightbour's items
-    neighbour_item = defaultdict(lambda: 0)
+    neighbour_item = defaultdict(int)
     for each_neighbour in neighbour:
         for neightbour_item in user_cart_train[each_neighbour[0]].keys():
-            neighbour_item[neightbour_item] += user_cart_train[each_neighbour[0]][neightbour_item]
+            neighbour_item[neightbour_item] += user_cart_train[each_neighbour[0]][neightbour_item] * each_neighbour[1]
     
     #get most possible 30 items
     neighbour_item_sort = sorted(neighbour_item.items(), key=lambda x: x[1], reverse=True)
@@ -249,7 +249,7 @@ item_hot_list = item_sales_number['item_id'].values
 predict = pd.DataFrame(predict)
 predict_null = predict.T.isna().any()
 predict = predict.fillna(-1)
-for i, j in enumerate(predict_null):
+for i, j in enumerate(predict_null[3:5]):
     if j:
         l = 0
         item_hot_list = [i[0] for i in sorted(user_cart_train[predict.iloc[i, 0]].items(), key=lambda x:x[1], reverse = True)] * 30
@@ -257,6 +257,15 @@ for i, j in enumerate(predict_null):
             if predict.iloc[i, k + 1] == -1:
                 predict.iloc[i, k + 1] = item_hot_list[l]
                 l += 1
+    tmp = list(predict.iloc[i, :])
+    tmp_num = sorted(user_cart_train[predict.iloc[i, 0]].items(), key=lambda x:x[1], reverse = True)[0][0]
+    if tmp_num in tmp:
+        tmp.remove(tmp_num)
+        tmp.insert(1, tmp_num)
+    else:
+        tmp.insert(1, tmp_num)
+        tmp.pop()
+    predict.iloc[i, :] = tmp
 predict = predict.astype(int)
 predict.columns = ['k'+str(i) for i in range(predict.shape[1])]
 predict.rename(columns={'k0' : 'user_id'}, inplace=True)

@@ -148,10 +148,10 @@ for user_id in data_test.buyer_admin_id.drop_duplicates():
         neighbour = neighbour_score[:neighbour_num_temp]
     
     #get N nearest neightbour's items
-    neighbour_item = defaultdict(lambda: 0)
+    neighbour_item = defaultdict(int)
     for each_neighbour in neighbour:
         for neightbour_item in user_cart_train[each_neighbour[0]].keys():
-            neighbour_item[neightbour_item] += user_cart_train[each_neighbour[0]][neightbour_item]
+            neighbour_item[neightbour_item] += user_cart_train[each_neighbour[0]][neightbour_item] * each_neighbour[1]
     
     #get most possible 30 items
     neighbour_item_sort = sorted(neighbour_item.items(), key=lambda x: x[1], reverse=True)

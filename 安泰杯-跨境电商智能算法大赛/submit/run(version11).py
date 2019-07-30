@@ -148,10 +148,10 @@ for user_id in data_test.buyer_admin_id.drop_duplicates():
         neighbour = neighbour_score[:neighbour_num_temp]
     
     #get N nearest neightbour's items
-    neighbour_item = defaultdict(lambda: 0)
+    neighbour_item = defaultdict(int)
     for each_neighbour in neighbour:
         for neightbour_item in user_cart_train[each_neighbour[0]].keys():
-            neighbour_item[neightbour_item] += user_cart_train[each_neighbour[0]][neightbour_item]
+            neighbour_item[neightbour_item] += user_cart_train[each_neighbour[0]][neightbour_item] * each_neighbour[1]
     
     #get most possible 30 items
     neighbour_item_sort = sorted(neighbour_item.items(), key=lambda x: x[1], reverse=True)
@@ -244,6 +244,12 @@ item_sales_number = item_sales_number.sort_values('sales_num', ascending=False).
 item_hot_list = item_sales_number['item_id'].values
 '''
 
+#选取用户近30次购买记录作为预测值
+test = pd.read_csv('Antai_AE_round1_test_20190626.csv')
+tmp = test[test['irank']<=31].sort_values(by=['buyer_country_id', 'buyer_admin_id', 'irank'])[['buyer_admin_id','item_id','irank']]
+sub = tmp.set_index(['buyer_admin_id', 'irank']).unstack(-1)
+sub_null = sub.T.isna().any()
+sub = sub.fillna(-1).astype(int).reset_index()
 
 #重复填充用户已购买过的item
 predict = pd.DataFrame(predict)
@@ -252,16 +258,40 @@ predict = predict.fillna(-1)
 for i, j in enumerate(predict_null):
     if j:
         l = 0
-        item_hot_list = [i[0] for i in sorted(user_cart_train[predict.iloc[i, 0]].items(), key=lambda x:x[1], reverse = True)] * 30
+        item_hot_list = ([i[0] for i in sorted(user_cart_train[predict.iloc[i, 0]].items(), key=lambda x:x[1], reverse = True)] * 30)[:30]
         for k in range(30):
             if predict.iloc[i, k + 1] == -1:
                 predict.iloc[i, k + 1] = item_hot_list[l]
                 l += 1
+    tmp = list(predict.iloc[i, :])
+    tmp_num = sorted(user_cart_train[predict.iloc[i, 0]].items(), key=lambda x:x[1], reverse = True)[0][0]
+    if tmp_num in tmp:
+        tmp.remove(tmp_num)
+        tmp.insert(1, tmp_num)
+    else:
+        tmp.insert(1, tmp_num)
+        tmp.pop()
+    predict.iloc[i, :] = tmp
 predict = predict.astype(int)
 predict.columns = ['k'+str(i) for i in range(predict.shape[1])]
 predict.rename(columns={'k0' : 'user_id'}, inplace=True)
-predict.to_csv('username.csv', index=None, header=None)
+#predict.to_csv('username.csv', index=None, header=None)
 
+#使用predict填充sub
+for i, j in enumerate(sub):
+    if j:
+        l = 1
+        tmp = list(sub.iloc[i, :])
+        for k in range(30):
+            if sub.iloc[i, k + 1] == -1:
+                while 1:
+                    if predict.iloc[i, l] not in tmp:
+                        sub.iloc[i, k + 1] = predict.iloc[i, k + 1]
+                        l += 1
+                        break
+                    else:
+                        l += 1
+sub.to_csv('final.csv', index=None, header=None)
 
 
 '''
