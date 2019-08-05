@@ -1,0 +1,46 @@
+version1 score:0.0951, offline score:0.07245486340462183
+version2 score:0.0753, offline score:0.05
+version3 score:0.1303, offline:
+version4 score:0.1263
+version5 score:
+version6 score:
+version8 score:0.1419
+version9 score:0.1423
+version10 score:0.1428
+version11 score:0.1539
+version12 score:
+version13 score:0.1539
+version14 score:0.1539
+
+version1:协同过滤
+version2:邻居选择中去除了自身
+version3:邻居选择中加入了自身，加入了按照购买时间的权重计算，更新了相似度计算方式
+version4:将购买数量大于50的用户剔除
+version5:不剔除用户，使用jaccard相似度计算，更新了相似度计算方式，考虑了热门item，score除以log(1+购买此商品的用户数)
+version6:把邻居数量提高至50
+version8:获取最近30个item时，将邻居的权重乘以item分数作为排序标准
+version9:将用户重复购买的商品强制固定第一位
+version10:恢复version4的score计算方式
+version11:将用户的30天内购买的item作为结果，缺失值以predict填充（未作前移）
+version12:先运行run(version12)，再运行stack(version12)。将用户购买的前5个item作为结果，剩余的以userCF和其他的购买的item交替填充
+version13:先运行run(version12)，再运行stack(version13)。将用户购买的前5个item作为结果，剩余的以其他的购买的item和userCF交替填充
+version14:先运行run(version12)，再运行stack(version14)。将用户购买的item依次前移作为结果，缺失值以predict填充
+
+应该提高已购买商品的权重
+尝试score计算方法：EJ(A,B) = sum ( min(a1, b1) + min (a2, b2)... ) / sum ( max(a1, b1) +max (a2, b2).. )
+
+TODO:
+将已购买过的item以irank排序填充NULL？
+对异常用户进行过滤，将其于user_item表中剔除(效果不明显，因为购买数量异常的用户作为邻居的分数较低，无法成为近邻)
+score计算方式提高已购买商品的score
+时间权重是否考虑？(暂时去除)
+将用户分为是否重复购买商品的两类，分别进行预测
+绝大部分用户都有重复购买的记录，将重复购买的商品置于推荐的前列？
+
+Q:
+程序运行过慢，如何优化？(已解决。1、寻找原始代码中重复计算的项，将其通过dict记录下来，以后如果要用到，直接查询即可，list的查询效率为O(n)，append效率为O(1)，运行时间从2.5h降低至30min。2、在几乎所有查询操作中，将所有的list查询改为set或dict查询，优先set查询，似乎set查询比dict稍快一丢丢？并且将程序运行中的dictionary都通过pickle储存下来，以后如果要使用，直接load即可，运行时间从30min降低至1min。)
+
+pickle模块不可以dump lambda函数(defaultdict中如果使用了lambda，同样不可以，但是可以通过自定义函数来储存defaultdict)
+
+重排序中，如何构建负样本？(尝试方法:针对每一条记录，生成一条负样本记录。1、对用户进行过滤，剔除疑似刷单等异常用户。2、一个userID对应一个itemID，针对itemID的cateID和storeID，进行选择，优先选择cateID与storeID交集的item，其次选择storeID的item，再其次选择cateID的item，最后从所有item中随机选择item作为负样本。)
+即使构建完负样本，在缺少用户信息的情况下如何构建模型？
