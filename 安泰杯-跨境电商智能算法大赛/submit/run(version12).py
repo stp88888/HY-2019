@@ -48,10 +48,12 @@ data_all = pd.concat([data_train, data_test], axis=0)
 user_drop_list = []
 if drop_user == 1:
     #剔除购买商品数量超过一定数量的用户
-    user_buy_num = data_all[['buyer_admin_id','item_id']].groupby(['buyer_admin_id']).count()
-    user_buy_num = user_buy_num.reset_index(drop=False)
-    user_drop_list = user_buy_num[user_buy_num['item_id'] > drop_user_limit]['buyer_admin_id'].values
-    user_drop_list_set = set(user_drop_list)
+    user_drop_list_set = set(data_all[['buyer_admin_id','item_id']]
+                                        .groupby(['buyer_admin_id'])
+                                        .count()
+                                        .reset_index(drop=False)
+                                        .query('item_id > @drop_user_limit')
+                                        .buyer_admin_id)
 
 time2 = time.time()
 print ('step1 complete', time2 - time1)
