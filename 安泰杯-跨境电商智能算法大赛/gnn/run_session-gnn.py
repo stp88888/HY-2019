@@ -15,7 +15,7 @@ import copy
 import time
 
 #是否初始化
-inital = 1
+inital = 0
 #item最少出现次数，少于此数目抛弃
 item_least_num = 2
 #drop_user只有在inital为1时才有效
@@ -28,7 +28,7 @@ time1 = time.time()
 print ('starting data processing.')
 if inital:
     print ('initializing.')
-    print ('para: {drop_user_limit: %s}', drop_user_limit)
+    print ('para: {drop_user_limit: %s}'%drop_user_limit)
     data_train = pd.read_csv('Antai_AE_round1_train_20190626.csv')
     data_test = pd.read_csv('Antai_AE_round1_test_20190626.csv')
     data_item = pd.read_csv('Antai_AE_round1_item_attr_20190626.csv')
@@ -121,9 +121,6 @@ def ProcessSeq(seqs):
 
 data_seq, data_label = ProcessSeq(data_seq)
 
-time2 = time.time()
-print ('data preprocessing complete, time cost:', time2-time1)
-
 data_seq = np.array(data_seq)
 #pickle.dump((data_seq, data_label), open('train_gnn.pkl', 'wb'))
 #pickle.dump(np.array(data_seq), open('train_seq.pkl', 'wb'))
@@ -132,6 +129,9 @@ data_seq = np.array(data_seq)
 joblib.dump(np.array(data_seq), open('train_seq', 'wb'), compress=3)
 joblib.dump(np.array(data_label), open('train_label', 'wb'), compress=3)
 joblib.dump(item_correspond_dict, open('item_corr_dict', 'wb'), compress=3)
+
+time2 = time.time()
+print ('data preprocessing complete, time cost:', time2-time1)
 
 '''
 ###
