@@ -21,7 +21,7 @@ item_least_num = 2
 #drop_user只有在inital为1时才有效
 drop_user = 1
 #一旦修改了drop_user_limit，必须重新初始化
-drop_user_limit = 1000
+drop_user_limit = 50
 
 time1 = time.time()
 
@@ -59,6 +59,7 @@ if inital:
     tes = {i['buyer_admin_id'].iloc[0]: list(i['item_id']) for _, i in tes}
     data = (data_all[['buyer_admin_id', 'item_id', 'irank']]
         .sort_values('irank')[['buyer_admin_id', 'item_id']]
+        .query('buyer_admin_id not in @user_drop')
         .groupby('buyer_admin_id'))
     data = {i['buyer_admin_id'].iloc[0]: list(i['item_id']) for _, i in data}
 
@@ -89,7 +90,7 @@ def TransformDataToSeq(df_dict, item_user):
     item_dict = {}
     ids = []
     seqs = []
-    ctr = 1
+    ctr = 0
     for sess_id, seq in df_dict.items():
         output = []
         for i in seq:
@@ -106,9 +107,9 @@ def TransformDataToSeq(df_dict, item_user):
     print (ctr)
     with open("sr-gnn_tmp.txt", "w") as fout:
         fout.write(str(ctr) + "\n")
-    return ids, seqs, item_dict
+    return ids, seqs, item_dict, ctr
     
-data_ids, data_seq, item_correspond_dict = TransformDataToSeq(data, item_user)
+data_ids, data_seq, item_correspond_dict, ctr = TransformDataToSeq(data, item_user)
 del data
 
 def ProcessSeq(seqs):
@@ -136,7 +137,7 @@ time2 = time.time()
 print ('train data preprocessing complete, time cost:', time2-time1)
 
 
-def TransformDataToSeq_Predict(df_dict, item_user, item_dict):
+def TransformDataToSeq_Predict(df_dict, item_user, item_dict, ctr):
     ids = []
     seqs = []
     for sess_id, seq in df_dict.items():
@@ -144,14 +145,22 @@ def TransformDataToSeq_Predict(df_dict, item_user, item_dict):
         for i in seq:
             if i in item_dict:
                 output += [item_dict[i]]
+            else:
+                item_dict[i] = ctr
+                output += [ctr]
+                ctr += 1
         if len(output) < 2:
             continue
         ids += [sess_id]
         seqs += [output]
     return ids, seqs
 
-test_ids, test_seq = TransformDataToSeq_Predict(tes, item_user, item_correspond_dict)
+test_ids, test_seq = TransformDataToSeq_Predict(tes, item_user, item_correspond_dict, ctr)
+test_seq = np.array([i for i in test_seq])
+test_label = np.array([-1] * len(test_seq))
+
 joblib.dump(np.array(test_seq), open('test_seq', 'wb'), compress=3)
+joblib.dump(np.array(test_label), open('test_label', 'wb'), compress=3)
 
 time3 = time.time()
 print ('test data preprocessing complete, time cost:', time3-time2)

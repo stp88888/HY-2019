@@ -38,6 +38,7 @@ score计算方式提高已购买商品的score
 绝大部分用户都有重复购买的记录，将重复购买的商品置于推荐的前列？
 
 使用GNN进行训练？
+SR-GNN论文地址:https://wvvw.aaai.org/ojs/index.php/AAAI/article/view/3804
 
 Q:
 程序运行过慢，如何优化？(已解决。1、寻找原始代码中重复计算的项，将其通过dict记录下来，以后如果要用到，直接查询即可，list的查询效率为O(n)，append效率为O(1)，运行时间从2.5h降低至30min。2、在几乎所有查询操作中，将所有的list查询改为set或dict查询，优先set查询，似乎set查询比dict稍快一丢丢？并且将程序运行中的dictionary都通过pickle储存下来，以后如果要使用，直接load即可，运行时间从30min降低至1min。)
@@ -49,6 +50,15 @@ pickle模块不可以dump lambda函数(defaultdict中如果使用了lambda，同
 
 存储大文件时，使用joblib而非pickle，因为pickle在处理大数据时似乎有bug？(https://bugs.python.org/issue24658)，而且joblib对np.array有优化，如果可以的话，尽量使用joblib
 
-np.array比list更加节省内存，原因：因为list中可以存储不同类型的数据，list中存储的是数据的引用地址即指针，那么存储n个数据就需要n个指针和n个数据，而np.array中存储的是相同类型的数据，存储的直接就是数据，因此np.array比list要更省内存，在某些操作中也比list要更高效率。实际中当数据越大，np.array所占的内存为list的一半还少一点，只有当数据极少的时候(甚至list=[i for i in range(10), array=np.array([i for i in range(10)]), array占的内存都比list要少)，list所占内存会比array少。
+np.array比list更加节省内存，原因：因为list中可以存储不同类型的数据，list中存储的是数据的引用地址即指针，那么存储n个数据就需要n个指针和n个数据，而np.array中存储的是相同类型的数据，存储的直接就是数据，因此np.array比list要更省内存，在某些操作中也比list要更高效率。实际中当数据越大，np.array所占的内存为list的一半还少一点，只有当数据极少的时候(甚至list=[i for i in range(10), array=np.array([i for i in range(10)]), array占的内存都比list要少)，list所占内存会比array少。(通过sys.getsizeof()获取对象的内存占用情况)
 
-SR-GNN中，原始序列的长度为n，那么此原始序列可以生成n-1个训练集
+神经网络中的batch创建部分，可以使用yield使函数变为generator，需要的时候就运行处理一次。
+
+对batch_size处理后剩下的不足batch_size的数据的处理方式:
+1、直接抛弃
+2、将其直接作为一个batch处理
+3、将其参与至下一轮epoch
+
+SR-GNN中，原始序列的长度为n，那么此原始序列可以生成n-1个训练集。
+
+SR-GNN未能提交结果，原因：训练参数不理想导致结果出现明显问题，预测结果全部一样，估计应该调节run_session-gnn中item_least_num和drop_user_limit参数，应提高item_least_num。

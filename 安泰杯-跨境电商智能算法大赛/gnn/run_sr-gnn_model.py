@@ -7,19 +7,24 @@ Created on Thu Aug  8 14:46:52 2019
 
 from __future__ import division
 import numpy as np
+import pandas as pd
+import copy
+import random
 import joblib
 import argparse
 import datetime
 import tensorflow as tf
 import math
+import os
 
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 print ('start model training.')
 def data_masks(all_usr_pois, item_tail):
-    us_lens = [len(upois) for upois in all_usr_pois]
+    us_lens = np.array([len(upois) for upois in all_usr_pois])
     len_max = max(us_lens)
-    us_pois = [upois + item_tail * (len_max - le) for upois, le in zip(all_usr_pois, us_lens)]
-    us_msks = [[1] * le + [0] * (len_max - le) for le in us_lens]
+    us_pois = [np.append(upois, item_tail * (len_max - le)) for upois, le in zip(all_usr_pois, us_lens)]
+    us_msks = [np.append([1] * le, [0] * (len_max - le)) for le in us_lens]
     return us_pois, us_msks, len_max
 
 
@@ -36,7 +41,6 @@ def split_validation(train_set, valid_portion):
 
     return (train_set_x, train_set_y), (valid_set_x, valid_set_y)
 
-
 class Data():
     def __init__(self, data, sub_graph=False, sparse=False, shuffle=False):
         inputs = data[0]
@@ -50,6 +54,7 @@ class Data():
         self.sub_graph = sub_graph
         self.sparse = sparse
 
+    #剩余不足batch size的数据归入最后一个batch
     def generate_batch(self, batch_size):
         if self.shuffle:
             shuffled_arg = np.arange(self.length)
@@ -93,7 +98,6 @@ class Data():
             return A_in, A_out, alias_inputs, items, self.mask[index], self.targets[index]
         else:
             return self.inputs[index], self.mask[index], self.targets[index]
-
 
 class Model(object):
     def __init__(self, hidden_size=100, out_size=100, batch_size=100, nonhybrid=True):
@@ -180,8 +184,8 @@ class GGNN(Model):
         self.learning_rate = tf.train.exponential_decay(lr, global_step=self.global_step, decay_steps=decay,
                                                         decay_rate=lr_dc, staircase=True)
         self.opt = tf.train.AdamOptimizer(self.learning_rate).minimize(self.loss_train, global_step=self.global_step)
-        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)
-        config = tf.ConfigProto(gpu_options=gpu_options)
+        # gpu_options = tf.GPUOptions()
+        config = tf.ConfigProto(log_device_placement=True)
         config.gpu_options.allow_growth = True
         self.sess = tf.Session(config=config)
         self.sess.run(tf.global_variables_initializer())
@@ -203,24 +207,24 @@ class GGNN(Model):
                                       initial_state=tf.reshape(fin_state, [-1, self.out_size]))
         return tf.reshape(fin_state, [self.batch_size, -1, self.out_size])
 
-parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', default='sample', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
-parser.add_argument('--validation', action='store_true', help='validation')
-parser.add_argument('--epoch', type=int, default=30, help='number of epochs to train for')
-parser.add_argument('--batchSize', type=int, default=100, help='input batch size')
-parser.add_argument('--hiddenSize', type=int, default=100, help='hidden state size')
-parser.add_argument('--l2', type=float, default=1e-5, help='l2 penalty')
-parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
-parser.add_argument('--step', type=int, default=1, help='gnn propogation steps')
-parser.add_argument('--nonhybrid', action='store_true', help='global preference')
-parser.add_argument('--lr_dc', type=float, default=0.1, help='learning rate decay rate')
-parser.add_argument('--lr_dc_step', type=int, default=3, help='the number of steps after which the learning rate decay')
-opt = parser.parse_args()
+# parser = argparse.ArgumentParser()
+# parser.add_argument('--dataset', default='sample', help='dataset name: diginetica/yoochoose1_4/yoochoose1_64/sample')
+# parser.add_argument('--validation', action='store_true', help='validation')
+# parser.add_argument('--epoch', type=int, default=30, help='number of epochs to train for')
+# parser.add_argument('--batchSize', type=int, default=100, help='input batch size')
+# parser.add_argument('--hiddenSize', type=int, default=100, help='hidden state size')
+# parser.add_argument('--l2', type=float, default=1e-5, help='l2 penalty')
+# parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
+# parser.add_argument('--step', type=int, default=1, help='gnn propogation steps')
+# parser.add_argument('--nonhybrid', action='store_true', help='global preference')
+# parser.add_argument('--lr_dc', type=float, default=0.1, help='learning rate decay rate')
+# parser.add_argument('--lr_dc_step', type=int, default=3, help='the number of steps after which the learning rate decay')
+# opt = parser.parse_args()
 
 para = {}
 para['validation'] = 'store_true'
-para['epoch'] = 30
-para['batchSize'] = 100
+para['epoch'] = 1
+para['batchSize'] = 256
 para['hiddenSize'] = 100
 para['validation'] = 'store_true'
 para['l2'] = 1e-5
@@ -232,12 +236,62 @@ para['lr_dc_step'] = 3
 n_node = np.loadtxt('sr-gnn_tmp.txt', dtype=int)
 
 train_label = joblib.load(open('train_label', 'rb'))
-data_seq = joblib.load(open('data_seq', 'rb'))
+train_seq = joblib.load(open('train_seq', 'rb'))
 item_corr_dict = joblib.load(open('item_corr_dict', 'rb'))
+test_seq = joblib.load(open('test_seq', 'rb'))
 
-train_data = Data((data_seq, train_label), sub_graph=True, shuffle=True)
+item_corr_dict2 = {j:i for i, j in item_corr_dict.items()}
+
+print ('processing data.')
+train_data = Data((train_seq, train_label), shuffle=True)
+test_data = Data((test_seq, train_label), shuffle=False)
 model = GGNN(hidden_size=para['hiddenSize'], out_size=para['hiddenSize'], 
              batch_size=para['batchSize'], n_node=n_node, lr=para['lr'], 
-             l2=para['l2'],  step=para['step'], 
+             l2=para['l2'],  step=para['step'],
              decay=para['lr_dc_step'] * len(train_data.inputs) / para['batchSize'],
-             lr_dc=para['lr_dc'], nonhybrid=opt.nonhybrid)
+             lr_dc=para['lr_dc'], nonhybrid=para['nonhybrid'])
+
+best_result = [0, 0]
+best_epoch = [0, 0]
+for epoch in range(para['epoch']):
+    print('epoch: ', epoch)
+    slices = train_data.generate_batch(model.batch_size)
+    fetches = [model.opt, model.loss_train, model.global_step]
+    print('epoch: %s start training'%epoch)
+    loss_ = []
+    for i, j in zip(slices, np.arange(len(slices))):
+        adj_in, adj_out, alias, item, mask, targets = train_data.get_slice(i)
+        _, loss, _ = model.run(fetches, targets, item, adj_in, adj_out, alias,  mask)
+        loss_.append(loss)
+    loss = np.mean(loss_)
+slices = test_data.generate_batch(model.batch_size)
+print('start predicting: ')
+hit, mrr, test_loss_ = [], [],[]
+ans = pd.DataFrame(np.zeros((0, 30), dtype=int))
+for i, j in zip(slices, np.arange(len(slices))):
+    adj_in, adj_out, alias, item, mask, targets = test_data.get_slice(i)
+    scores, test_loss = model.run([model.score_test, model.loss_test], targets, item, adj_in, adj_out, alias,  mask)
+    test_loss_.append(test_loss)
+    index = np.argsort(scores, 1)[:, -30:]
+    ans = pd.concat([ans, pd.DataFrame(index)], axis=0).reset_index(drop=True)
+ans2 = ans.applymap(lambda x: item_corr_dict2[x+1])
+ans2.to_csv('ans.csv', index=None, header=None)
+#     #print (aaaa)
+#     for score, target in zip(index, targets):
+#         hit.append(np.isin(target - 1, score))
+#         if len(np.where(score == target - 1)[0]) == 0:
+#             mrr.append(0)
+#         else:
+#             mrr.append(1 / (20-np.where(score == target - 1)[0][0]))
+# hit = np.mean(hit)*100
+# mrr = np.mean(mrr)*100
+# test_loss = np.mean(test_loss_)
+# if hit >= best_result[0]:
+#     best_result[0] = hit
+#     best_epoch[0] = epoch
+# if mrr >= best_result[1]:
+#     best_result[1] = mrr
+#     best_epoch[1]=epoch
+# print('train_loss:\t%.4f\ttest_loss:\t%4f\tRecall@20:\t%.4f\tMMR@20:\t%.4f\tEpoch:\t%d,\t%d'%
+#       (loss, test_loss, best_result[0], best_result[1], best_epoch[0], best_epoch[1]))
+
