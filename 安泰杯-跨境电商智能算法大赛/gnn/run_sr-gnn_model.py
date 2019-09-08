@@ -21,6 +21,8 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 print ('start model training.')
 def data_masks(all_usr_pois, item_tail):
+    #us_pois令所有sess同长度，长度不足的补item_tail
+    #us_msks中1的为真实数据，0的为补充数据
     us_lens = np.array([len(upois) for upois in all_usr_pois])
     len_max = max(us_lens)
     us_pois = [np.append(upois, item_tail * (len_max - le)) for upois, le in zip(all_usr_pois, us_lens)]
