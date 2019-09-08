@@ -1,0 +1,5 @@
+Q:pandas中的DataFrame占用过多内存
+A:通过数据类型转换减少内存占用。方法：判断col默认数据类型，将int64降至int8，float64降至float16，参考reduce_mem_usage方法。由于dataframe默认使用float64或int64存储数据，因此大量浪费了内存，当col中存在np.nan或小数时，默认使用float存储，因为int无法保存np.nan(https://stackoverflow.com/questions/38003406/pandas-why-is-default-column-type-for-numeric-float)，这是继承自numpy的限制。
+如果使用int存储np.nan，那么pandas需要设置一个位模式(bit pattern)(https://zhuanlan.zhihu.com/p/46317118)(位模式:计算机使用十六进制作为位模式的表达式)来表示np.nan；如果使用float存储np.nan，IEEE 754标准中就已经定义了缺失值的表示方法(指数2^e-1,小数部分为0)(https://www.wikiwand.com/zh-cn/IEEE_754#/.E7.89.B9.E6.AE.8A.E5.80.BC)。而对于固定宽度的整数来说，这样效率更低，因此选择使用float。
+要注意的是在pandas 0.24版本中，已经有实验性的IntegerArray类型，可以使用int存储np.nan(https://pandas.pydata.org/pandas-docs/version/0.24/reference/api/pandas.arrays.IntegerArray.html)
+A2:转换成SparseDataFrame
