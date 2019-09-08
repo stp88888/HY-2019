@@ -15,9 +15,11 @@ import copy
 import time
 
 #是否初始化
-inital = 0
+inital = 1
 #item最少出现次数，少于此数目抛弃
 item_least_num = 2
+#处理后的session最少出现次数，少于此数目抛弃
+sess_least_num = 2
 #drop_user只有在inital为1时才有效
 drop_user = 1
 #一旦修改了drop_user_limit，必须重新初始化
@@ -79,7 +81,7 @@ else:
 data_tmp = copy.deepcopy(data)
 for i, j in data.items():
     tmp = list(filter(lambda x: item_user[x] >= item_least_num, j))
-    if len(tmp) < item_least_num:
+    if len(tmp) < sess_least_num:
         del data_tmp[i]
     else:
         data_tmp[i] = tmp
